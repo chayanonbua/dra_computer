@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { prisma } from "./prisma";
 import {
   ASSET_STATUS_LABELS,
   buildAssetTimeline,
@@ -250,78 +251,163 @@ describe("buildAssetTimeline", () => {
   });
 });
 
-describe("getAssetListItems", () => {
-  it("resolves owner/group/office name from a group that directly holds the asset", async () => {
-    const items = await getAssetListItems();
-    const printer = items.find((a) => a.assetNumber === "COMP-2022-015");
-    expect(printer?.currentOwnerName).toBe("กลุ่มพัฒนาระบบ");
-    expect(printer?.currentOwnerGroupName).toBe("กลุ่มพัฒนาระบบ");
-    expect(printer?.currentOwnerOfficeName).toBe("สำนักเทคโนโลยีสารสนเทศ");
+// getAssetListItems/getAssetDetail ใช้ fixture ของตัวเอง (ไม่พึ่ง seed data ที่มีอยู่ในระบบ)
+// เพราะข้อมูลจริงในฐานข้อมูลอาจเปลี่ยนแปลงได้ตลอดเวลา (เช่น นำเข้าข้อมูลบุคลากรจริง)
+describe("DB-backed asset queries", () => {
+  let officeId: number;
+  let groupId: number;
+  let personId: number;
+  let officeName: string;
+  let groupName: string;
+  let personName: string;
+
+  let groupOwnedAssetId: number;
+  let personOwnedAssetId: number;
+  let movedAssetId: number;
+  let disposedAssetId: number;
+
+  beforeAll(async () => {
+    const office = await prisma.office.create({ data: { name: "สำนักทดสอบ assets.test.ts" } });
+    officeId = office.id;
+    officeName = office.name;
+
+    const group = await prisma.group.create({
+      data: { name: "กลุ่มทดสอบ assets.test.ts", officeId },
+    });
+    groupId = group.id;
+    groupName = group.name;
+
+    const person = await prisma.person.create({
+      data: { name: "บุคคลทดสอบ assets.test.ts", groupId },
+    });
+    personId = person.id;
+    personName = person.name;
+
+    const groupOwnedAsset = await prisma.asset.create({
+      data: {
+        assetNumber: "TEST-ASSETS-GROUP-OWNED",
+        name: "เครื่องทดสอบกลุ่มถือครอง",
+        status: "active",
+        currentGroupId: groupId,
+      },
+    });
+    groupOwnedAssetId = groupOwnedAsset.id;
+
+    const personOwnedAsset = await prisma.asset.create({
+      data: {
+        assetNumber: "TEST-ASSETS-PERSON-OWNED",
+        name: "เครื่องทดสอบบุคคลถือครอง",
+        status: "repairing",
+        currentPersonId: personId,
+      },
+    });
+    personOwnedAssetId = personOwnedAsset.id;
+    await prisma.repair.create({
+      data: { assetId: personOwnedAssetId, repairedAt: new Date("2026-05-01"), symptom: "ทดสอบ" },
+    });
+
+    const movedAsset = await prisma.asset.create({
+      data: { assetNumber: "TEST-ASSETS-MOVED", name: "เครื่องทดสอบมีประวัติย้าย", status: "active" },
+    });
+    movedAssetId = movedAsset.id;
+    await prisma.movement.create({
+      data: { assetId: movedAssetId, movedAt: new Date("2026-05-02"), fromOwner: null, toOwner: groupName },
+    });
+
+    const disposedAsset = await prisma.asset.create({
+      data: {
+        assetNumber: "TEST-ASSETS-DISPOSED",
+        name: "เครื่องทดสอบจำหน่ายแล้ว",
+        status: "disposed",
+        disposedAt: new Date("2026-02-01"),
+        disposalReason: "ครบอายุการใช้งาน",
+      },
+    });
+    disposedAssetId = disposedAsset.id;
   });
 
-  it("still includes disposed assets, labeled with the disposed status", async () => {
-    const items = await getAssetListItems();
-    const server = items.find((a) => a.assetNumber === "COMP-2019-003");
-    expect(server).toBeDefined();
-    expect(server?.status).toBe("disposed");
-    expect(ASSET_STATUS_LABELS.disposed).toBe("จำหน่าย");
+  afterAll(async () => {
+    const assetIds = [groupOwnedAssetId, personOwnedAssetId, movedAssetId, disposedAssetId];
+    await prisma.repair.deleteMany({ where: { assetId: { in: assetIds } } });
+    await prisma.movement.deleteMany({ where: { assetId: { in: assetIds } } });
+    await prisma.asset.deleteMany({ where: { id: { in: assetIds } } });
+    await prisma.person.delete({ where: { id: personId } });
+    await prisma.group.delete({ where: { id: groupId } });
+    await prisma.office.delete({ where: { id: officeId } });
   });
 
-  it("returns null group/office for an asset with no current owner", async () => {
-    const items = await getAssetListItems();
-    const server = items.find((a) => a.assetNumber === "COMP-2019-003");
-    expect(server?.currentOwnerName).toBeNull();
-    expect(server?.currentOwnerGroupName).toBeNull();
-    expect(server?.currentOwnerOfficeName).toBeNull();
-  });
-});
+  describe("getAssetListItems", () => {
+    it("resolves owner/group/office name from a group that directly holds the asset", async () => {
+      const items = await getAssetListItems();
+      const asset = items.find((a) => a.id === groupOwnedAssetId);
+      expect(asset?.currentOwnerName).toBe(groupName);
+      expect(asset?.currentOwnerGroupName).toBe(groupName);
+      expect(asset?.currentOwnerOfficeName).toBe(officeName);
+    });
 
-describe("getAssetDetail", () => {
-  it("returns full detail with a repair-only timeline for the requested asset", async () => {
-    const laptop = await getAssetDetail(2);
-    expect(laptop).not.toBeNull();
-    expect(laptop?.assetNumber).toBe("COMP-2024-002");
-    expect(laptop?.timeline).toHaveLength(1);
-    expect(laptop?.timeline[0].type).toBe("repair");
-  });
+    it("still includes disposed assets, labeled with the disposed status", async () => {
+      const items = await getAssetListItems();
+      const asset = items.find((a) => a.id === disposedAssetId);
+      expect(asset).toBeDefined();
+      expect(asset?.status).toBe("disposed");
+      expect(ASSET_STATUS_LABELS.disposed).toBe("จำหน่าย");
+    });
 
-  it("resolves owner/group/office name from a person who holds the asset", async () => {
-    const laptop = await getAssetDetail(2);
-    expect(laptop?.currentOwnerName).toBe("สมชาย ใจดี");
-    expect(laptop?.currentOwnerGroupName).toBe("กลุ่มการเจ้าหน้าที่");
-    expect(laptop?.currentOwnerOfficeName).toBe("สำนักงานเลขานุการกรม");
-  });
-
-  it("returns a movement-only timeline scoped to that asset, not other assets", async () => {
-    const desktop = await getAssetDetail(1);
-    expect(desktop).not.toBeNull();
-    expect(desktop?.assetNumber).toBe("COMP-2024-001");
-    expect(desktop?.timeline).toHaveLength(1);
-    expect(desktop?.timeline[0].type).toBe("movement");
+    it("returns null group/office for an asset with no current owner", async () => {
+      const items = await getAssetListItems();
+      const asset = items.find((a) => a.id === disposedAssetId);
+      expect(asset?.currentOwnerName).toBeNull();
+      expect(asset?.currentOwnerGroupName).toBeNull();
+      expect(asset?.currentOwnerOfficeName).toBeNull();
+    });
   });
 
-  it("returns null group/office for an asset with no current owner", async () => {
-    const server = await getAssetDetail(4);
-    expect(server?.currentOwnerName).toBeNull();
-    expect(server?.currentOwnerGroupName).toBeNull();
-    expect(server?.currentOwnerOfficeName).toBeNull();
-  });
+  describe("getAssetDetail", () => {
+    it("returns full detail with a repair-only timeline for the requested asset", async () => {
+      const detail = await getAssetDetail(personOwnedAssetId);
+      expect(detail).not.toBeNull();
+      expect(detail?.assetNumber).toBe("TEST-ASSETS-PERSON-OWNED");
+      expect(detail?.timeline).toHaveLength(1);
+      expect(detail?.timeline[0].type).toBe("repair");
+    });
 
-  it("returns null for an asset id that does not exist", async () => {
-    const result = await getAssetDetail(999999);
-    expect(result).toBeNull();
-  });
+    it("resolves owner/group/office name from a person who holds the asset", async () => {
+      const detail = await getAssetDetail(personOwnedAssetId);
+      expect(detail?.currentOwnerName).toBe(personName);
+      expect(detail?.currentOwnerGroupName).toBe(groupName);
+      expect(detail?.currentOwnerOfficeName).toBe(officeName);
+    });
 
-  it("includes disposal date/reason and a disposal entry in the timeline for a disposed asset", async () => {
-    const server = await getAssetDetail(4);
-    expect(server?.status).toBe("disposed");
-    expect(server?.disposedAt?.toISOString().slice(0, 10)).toBe("2026-02-01");
-    expect(server?.disposalReason).toBe("ครบอายุการใช้งาน");
+    it("returns a movement-only timeline scoped to that asset, not other assets", async () => {
+      const detail = await getAssetDetail(movedAssetId);
+      expect(detail).not.toBeNull();
+      expect(detail?.timeline).toHaveLength(1);
+      expect(detail?.timeline[0].type).toBe("movement");
+    });
 
-    const disposalEntry = server?.timeline.find((entry) => entry.type === "disposal");
-    expect(disposalEntry).toBeDefined();
-    expect(disposalEntry?.type === "disposal" && disposalEntry.reason).toBe(
-      "ครบอายุการใช้งาน"
-    );
+    it("returns null group/office for an asset with no current owner", async () => {
+      const detail = await getAssetDetail(disposedAssetId);
+      expect(detail?.currentOwnerName).toBeNull();
+      expect(detail?.currentOwnerGroupName).toBeNull();
+      expect(detail?.currentOwnerOfficeName).toBeNull();
+    });
+
+    it("returns null for an asset id that does not exist", async () => {
+      const result = await getAssetDetail(999999);
+      expect(result).toBeNull();
+    });
+
+    it("includes disposal date/reason and a disposal entry in the timeline for a disposed asset", async () => {
+      const detail = await getAssetDetail(disposedAssetId);
+      expect(detail?.status).toBe("disposed");
+      expect(detail?.disposedAt?.toISOString().slice(0, 10)).toBe("2026-02-01");
+      expect(detail?.disposalReason).toBe("ครบอายุการใช้งาน");
+
+      const disposalEntry = detail?.timeline.find((entry) => entry.type === "disposal");
+      expect(disposalEntry).toBeDefined();
+      expect(disposalEntry?.type === "disposal" && disposalEntry.reason).toBe(
+        "ครบอายุการใช้งาน"
+      );
+    });
   });
 });
