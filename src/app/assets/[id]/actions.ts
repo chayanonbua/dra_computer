@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createRepair } from "@/lib/repairs";
-import { createMovement } from "@/lib/movements";
+import { createMovement, type MovementDestinationType } from "@/lib/movements";
 import { disposeAsset } from "@/lib/disposal";
 
 export interface ActionState {
@@ -43,10 +43,13 @@ export async function createMovementAction(
   formData: FormData
 ): Promise<ActionState> {
   try {
+    const [toType, toIdRaw] = String(formData.get("destination") ?? "").split(":");
+
     await createMovement({
       assetId,
       movedAt: new Date(String(formData.get("movedAt") ?? "")),
-      toOwnerId: Number(formData.get("toOwnerId")),
+      toType: toType as MovementDestinationType,
+      toId: Number(toIdRaw),
       note: (formData.get("note") as string) || null,
     });
 

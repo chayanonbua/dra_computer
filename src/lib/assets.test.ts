@@ -18,9 +18,9 @@ const assets: AssetListItem[] = [
     brand: "Dell",
     model: "OptiPlex 7010",
     status: "active",
-    currentOwnerName: "ฝ่ายบัญชี",
+    currentOwnerName: "กลุ่มการเงินและบัญชี",
     currentOwnerGroupName: "กลุ่มการเงินและบัญชี",
-    currentOwnerBureauName: "สำนักงานเลขานุการกรม",
+    currentOwnerOfficeName: "สำนักงานเลขานุการกรม",
   },
   {
     id: 2,
@@ -31,7 +31,7 @@ const assets: AssetListItem[] = [
     status: "repairing",
     currentOwnerName: "สมชาย ใจดี",
     currentOwnerGroupName: "กลุ่มการเจ้าหน้าที่",
-    currentOwnerBureauName: "สำนักงานเลขานุการกรม",
+    currentOwnerOfficeName: "สำนักงานเลขานุการกรม",
   },
   {
     id: 3,
@@ -40,9 +40,9 @@ const assets: AssetListItem[] = [
     brand: "HP",
     model: "LaserJet Pro M404dn",
     status: "active",
-    currentOwnerName: "ฝ่ายไอที",
+    currentOwnerName: "กลุ่มพัฒนาระบบ",
     currentOwnerGroupName: "กลุ่มพัฒนาระบบ",
-    currentOwnerBureauName: "สำนักเทคโนโลยีสารสนเทศ",
+    currentOwnerOfficeName: "สำนักเทคโนโลยีสารสนเทศ",
   },
   {
     id: 4,
@@ -53,7 +53,7 @@ const assets: AssetListItem[] = [
     status: "disposed",
     currentOwnerName: null,
     currentOwnerGroupName: null,
-    currentOwnerBureauName: null,
+    currentOwnerOfficeName: null,
   },
 ];
 
@@ -86,8 +86,8 @@ describe("filterAssets", () => {
     expect(result[0].id).toBe(1);
   });
 
-  it("filters by exact bureau name, matching multiple assets that share it", () => {
-    const result = filterAssets(assets, { bureau: "สำนักงานเลขานุการกรม" });
+  it("filters by exact office name, matching multiple assets that share it", () => {
+    const result = filterAssets(assets, { office: "สำนักงานเลขานุการกรม" });
     expect(result.map((a) => a.id).sort()).toEqual([1, 2]);
   });
 
@@ -96,17 +96,17 @@ describe("filterAssets", () => {
     expect(result.some((a) => a.id === 4)).toBe(false);
   });
 
-  it("combines group and bureau filters with status (AND logic)", () => {
+  it("combines group and office filters with status (AND logic)", () => {
     const result = filterAssets(assets, {
-      bureau: "สำนักงานเลขานุการกรม",
+      office: "สำนักงานเลขานุการกรม",
       status: "repairing",
     });
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe(2);
   });
 
-  it("returns everything when group/bureau filters are empty strings", () => {
-    expect(filterAssets(assets, { group: "", bureau: "" })).toHaveLength(4);
+  it("returns everything when group/office filters are empty strings", () => {
+    expect(filterAssets(assets, { group: "", office: "" })).toHaveLength(4);
   });
 
   it("searches by asset number, case-insensitively", () => {
@@ -127,10 +127,10 @@ describe("filterAssets", () => {
     expect(result[0].id).toBe(2);
   });
 
-  it("searches by current owner name", () => {
-    const result = filterAssets(assets, { search: "ฝ่ายไอที" });
+  it("searches by current owner name (a person, distinct from their group name)", () => {
+    const result = filterAssets(assets, { search: "สมชาย ใจดี" });
     expect(result).toHaveLength(1);
-    expect(result[0].id).toBe(3);
+    expect(result[0].id).toBe(2);
   });
 
   it("searches by current owner's group name", () => {
@@ -139,7 +139,7 @@ describe("filterAssets", () => {
     expect(result[0].id).toBe(3);
   });
 
-  it("searches by current owner's bureau name", () => {
+  it("searches by current owner's office name", () => {
     const result = filterAssets(assets, { search: "สำนักเทคโนโลยีสารสนเทศ" });
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe(3);
@@ -247,12 +247,12 @@ describe("buildAssetTimeline", () => {
 });
 
 describe("getAssetListItems", () => {
-  it("includes the current owner's group and bureau name", async () => {
+  it("resolves owner/group/office name from a group that directly holds the asset", async () => {
     const items = await getAssetListItems();
     const printer = items.find((a) => a.assetNumber === "COMP-2022-015");
-    expect(printer?.currentOwnerName).toBe("ฝ่ายไอที");
+    expect(printer?.currentOwnerName).toBe("กลุ่มพัฒนาระบบ");
     expect(printer?.currentOwnerGroupName).toBe("กลุ่มพัฒนาระบบ");
-    expect(printer?.currentOwnerBureauName).toBe("สำนักเทคโนโลยีสารสนเทศ");
+    expect(printer?.currentOwnerOfficeName).toBe("สำนักเทคโนโลยีสารสนเทศ");
   });
 
   it("still includes disposed assets, labeled with the disposed status", async () => {
@@ -263,12 +263,12 @@ describe("getAssetListItems", () => {
     expect(ASSET_STATUS_LABELS.disposed).toBe("จำหน่าย");
   });
 
-  it("returns null group/bureau for an asset with no current owner", async () => {
+  it("returns null group/office for an asset with no current owner", async () => {
     const items = await getAssetListItems();
     const server = items.find((a) => a.assetNumber === "COMP-2019-003");
     expect(server?.currentOwnerName).toBeNull();
     expect(server?.currentOwnerGroupName).toBeNull();
-    expect(server?.currentOwnerBureauName).toBeNull();
+    expect(server?.currentOwnerOfficeName).toBeNull();
   });
 });
 
@@ -281,11 +281,11 @@ describe("getAssetDetail", () => {
     expect(laptop?.timeline[0].type).toBe("repair");
   });
 
-  it("includes the current owner's group and bureau name", async () => {
+  it("resolves owner/group/office name from a person who holds the asset", async () => {
     const laptop = await getAssetDetail(2);
     expect(laptop?.currentOwnerName).toBe("สมชาย ใจดี");
     expect(laptop?.currentOwnerGroupName).toBe("กลุ่มการเจ้าหน้าที่");
-    expect(laptop?.currentOwnerBureauName).toBe("สำนักงานเลขานุการกรม");
+    expect(laptop?.currentOwnerOfficeName).toBe("สำนักงานเลขานุการกรม");
   });
 
   it("returns a movement-only timeline scoped to that asset, not other assets", async () => {
@@ -296,11 +296,11 @@ describe("getAssetDetail", () => {
     expect(desktop?.timeline[0].type).toBe("movement");
   });
 
-  it("returns null group/bureau for an asset with no current owner", async () => {
+  it("returns null group/office for an asset with no current owner", async () => {
     const server = await getAssetDetail(4);
     expect(server?.currentOwnerName).toBeNull();
     expect(server?.currentOwnerGroupName).toBeNull();
-    expect(server?.currentOwnerBureauName).toBeNull();
+    expect(server?.currentOwnerOfficeName).toBeNull();
   });
 
   it("returns null for an asset id that does not exist", async () => {

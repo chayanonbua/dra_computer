@@ -3,36 +3,28 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
-  const adminBureau = await prisma.bureau.create({
+  const adminOffice = await prisma.office.create({
     data: { name: "สำนักงานเลขานุการกรม" },
   });
-  const technicalBureau = await prisma.bureau.create({
+  const technicalOffice = await prisma.office.create({
     data: { name: "สำนักเทคโนโลยีสารสนเทศ" },
   });
 
   const [financeGroup, itGroup, personnelGroup] = await Promise.all([
     prisma.group.create({
-      data: { name: "กลุ่มการเงินและบัญชี", bureauId: adminBureau.id },
+      data: { name: "กลุ่มการเงินและบัญชี", officeId: adminOffice.id },
     }),
     prisma.group.create({
-      data: { name: "กลุ่มพัฒนาระบบ", bureauId: technicalBureau.id },
+      data: { name: "กลุ่มพัฒนาระบบ", officeId: technicalOffice.id },
     }),
     prisma.group.create({
-      data: { name: "กลุ่มการเจ้าหน้าที่", bureauId: adminBureau.id },
+      data: { name: "กลุ่มการเจ้าหน้าที่", officeId: adminOffice.id },
     }),
   ]);
 
-  const [itDept, accounting, somchai] = await Promise.all([
-    prisma.owner.create({
-      data: { name: "ฝ่ายไอที", type: "group", groupId: itGroup.id },
-    }),
-    prisma.owner.create({
-      data: { name: "ฝ่ายบัญชี", type: "group", groupId: financeGroup.id },
-    }),
-    prisma.owner.create({
-      data: { name: "สมชาย ใจดี", type: "person", groupId: personnelGroup.id },
-    }),
-  ]);
+  const somchai = await prisma.person.create({
+    data: { name: "สมชาย ใจดี", groupId: personnelGroup.id },
+  });
 
   const desktop = await prisma.asset.create({
     data: {
@@ -42,7 +34,7 @@ async function main() {
       model: "OptiPlex 7010",
       status: "active",
       acquiredAt: new Date("2024-01-15"),
-      currentOwnerId: accounting.id,
+      currentGroupId: financeGroup.id,
       note: "เครื่องประจำแผนกบัญชี",
     },
   });
@@ -55,7 +47,7 @@ async function main() {
       model: "ThinkPad T14",
       status: "repairing",
       acquiredAt: new Date("2023-06-01"),
-      currentOwnerId: somchai.id,
+      currentPersonId: somchai.id,
       note: "จอมีปัญหา อยู่ระหว่างซ่อม",
     },
   });
@@ -68,7 +60,7 @@ async function main() {
       model: "LaserJet Pro M404dn",
       status: "active",
       acquiredAt: new Date("2022-09-10"),
-      currentOwnerId: itDept.id,
+      currentGroupId: itGroup.id,
     },
   });
 
@@ -102,7 +94,7 @@ async function main() {
       assetId: desktop.id,
       movedAt: new Date("2024-01-15"),
       fromOwner: null,
-      toOwner: accounting.name,
+      toOwner: financeGroup.name,
       note: "รับเครื่องใหม่เข้าประจำแผนก",
     },
   });
@@ -111,16 +103,16 @@ async function main() {
     data: {
       assetId: printer.id,
       movedAt: new Date("2023-05-10"),
-      fromOwner: accounting.name,
-      toOwner: itDept.name,
+      fromOwner: financeGroup.name,
+      toOwner: itGroup.name,
       note: "ย้ายมาประจำห้องไอที",
     },
   });
 
   console.log("Seed data created:", {
-    bureaus: 2,
+    offices: 2,
     groups: 3,
-    owners: 3,
+    people: 1,
     assets: [desktop.assetNumber, laptop.assetNumber, printer.assetNumber, oldServer.assetNumber],
   });
 }

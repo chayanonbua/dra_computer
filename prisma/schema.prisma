@@ -10,33 +10,33 @@ datasource db {
   url      = "file:./dev.db"
 }
 
-// สำนัก
-model Bureau {
+// สำนัก (ลำดับชั้นบนสุด)
+model Office {
   id        Int      @id @default(autoincrement())
   name      String
   groups    Group[]
   createdAt DateTime @default(now())
 }
 
-// กลุ่ม (ขึ้นกับสำนัก)
+// กลุ่ม (ขึ้นกับสำนัก) — ถือครองครุภัณฑ์ได้โดยตรงในฐานะกลุ่ม
 model Group {
-  id        Int      @id @default(autoincrement())
-  name      String
-  bureau    Bureau   @relation(fields: [bureauId], references: [id])
-  bureauId  Int
-  owners    Owner[]
-  createdAt DateTime @default(now())
+  id             Int      @id @default(autoincrement())
+  name           String
+  office         Office   @relation(fields: [officeId], references: [id], onDelete: Restrict)
+  officeId       Int
+  people         Person[]
+  assetsAsOwner  Asset[]  @relation("AssetCurrentGroup")
+  createdAt      DateTime @default(now())
 }
 
-// ผู้ใช้งาน/กลุ่มที่ถือครองครุภัณฑ์
-model Owner {
-  id        Int        @id @default(autoincrement())
-  name      String
-  type      String     // "person" หรือ "group"
-  group     Group?     @relation(fields: [groupId], references: [id])
-  groupId   Int?
-  assets    Asset[]    // ครุภัณฑ์ที่ถือครองอยู่ปัจจุบัน
-  createdAt DateTime   @default(now())
+// บุคคล (ขึ้นกับกลุ่ม) — ถือครองครุภัณฑ์ได้โดยตรงในฐานะบุคคล
+model Person {
+  id             Int      @id @default(autoincrement())
+  name           String
+  group          Group    @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  groupId        Int
+  assetsAsOwner  Asset[]  @relation("AssetCurrentPerson")
+  createdAt      DateTime @default(now())
 }
 
 // ครุภัณฑ์คอมพิวเตอร์
@@ -53,8 +53,12 @@ model Asset {
   disposedAt      DateTime?                  // วันที่จำหน่าย
   disposalReason  String?                    // เหตุผลการจำหน่าย
 
-  currentOwner  Owner?      @relation(fields: [currentOwnerId], references: [id])
-  currentOwnerId Int?
+  // ครุภัณฑ์ผูกกับ "กลุ่ม" (ทั้งกลุ่มถือครองร่วมกัน) หรือ "บุคคล" (คนใดคนหนึ่งถือครอง)
+  // อย่างใดอย่างหนึ่งเท่านั้น หรือว่างทั้งคู่ถ้ายังไม่มอบหมาย — คุมกฎนี้ในชั้น application
+  currentGroup    Group?   @relation("AssetCurrentGroup", fields: [currentGroupId], references: [id], onDelete: Restrict)
+  currentGroupId  Int?
+  currentPerson   Person?  @relation("AssetCurrentPerson", fields: [currentPersonId], references: [id], onDelete: Restrict)
+  currentPersonId Int?
 
   repairs       Repair[]
   movements     Movement[]
@@ -77,7 +81,7 @@ model Repair {
 }
 
 // ประวัติการเคลื่อนย้าย (ผูกกับครุภัณฑ์)
-// เมื่อบันทึกรายการใหม่ ต้องอัปเดต Asset.currentOwnerId ให้ตรงกับ toOwner
+// เมื่อบันทึกรายการใหม่ ต้องอัปเดต Asset.currentGroupId/currentPersonId ให้ตรงกับปลายทาง
 model Movement {
   id          Int      @id @default(autoincrement())
   asset       Asset    @relation(fields: [assetId], references: [id])

@@ -25,33 +25,70 @@ export interface AssetListItem {
   status: string;
   currentOwnerName: string | null;
   currentOwnerGroupName: string | null;
-  currentOwnerBureauName: string | null;
+  currentOwnerOfficeName: string | null;
 }
+
+interface OwnerHolder {
+  currentGroup: { name: string; office: { name: string } } | null;
+  currentPerson: { name: string; group: { name: string; office: { name: string } } } | null;
+}
+
+// ครุภัณฑ์ผูกกับ "กลุ่ม" หรือ "บุคคล" อย่างใดอย่างหนึ่ง — สรุปเป็นชื่อผู้ใช้งาน/กลุ่ม/สำนักเดียวกัน
+// เพื่อให้ UI แสดงผลได้แบบเดียวกันไม่ว่าจะถือครองโดยกลุ่มหรือบุคคล
+function resolveOwnerInfo(asset: OwnerHolder): {
+  ownerName: string | null;
+  groupName: string | null;
+  officeName: string | null;
+} {
+  if (asset.currentPerson) {
+    return {
+      ownerName: asset.currentPerson.name,
+      groupName: asset.currentPerson.group.name,
+      officeName: asset.currentPerson.group.office.name,
+    };
+  }
+  if (asset.currentGroup) {
+    return {
+      ownerName: asset.currentGroup.name,
+      groupName: asset.currentGroup.name,
+      officeName: asset.currentGroup.office.name,
+    };
+  }
+  return { ownerName: null, groupName: null, officeName: null };
+}
+
+const OWNER_INCLUDE = {
+  currentGroup: { include: { office: true } },
+  currentPerson: { include: { group: { include: { office: true } } } },
+} as const;
 
 export async function getAssetListItems(): Promise<AssetListItem[]> {
   const assets = await prisma.asset.findMany({
     orderBy: { assetNumber: "asc" },
-    include: { currentOwner: { include: { group: { include: { bureau: true } } } } },
+    include: OWNER_INCLUDE,
   });
 
-  return assets.map((asset) => ({
-    id: asset.id,
-    assetNumber: asset.assetNumber,
-    name: asset.name,
-    brand: asset.brand,
-    model: asset.model,
-    status: asset.status,
-    currentOwnerName: asset.currentOwner?.name ?? null,
-    currentOwnerGroupName: asset.currentOwner?.group?.name ?? null,
-    currentOwnerBureauName: asset.currentOwner?.group?.bureau.name ?? null,
-  }));
+  return assets.map((asset) => {
+    const owner = resolveOwnerInfo(asset);
+    return {
+      id: asset.id,
+      assetNumber: asset.assetNumber,
+      name: asset.name,
+      brand: asset.brand,
+      model: asset.model,
+      status: asset.status,
+      currentOwnerName: owner.ownerName,
+      currentOwnerGroupName: owner.groupName,
+      currentOwnerOfficeName: owner.officeName,
+    };
+  });
 }
 
 export interface AssetFilters {
   search?: string;
   status?: string;
   group?: string;
-  bureau?: string;
+  office?: string;
 }
 
 export function filterAssets(
@@ -61,12 +98,12 @@ export function filterAssets(
   const search = filters.search?.trim().toLowerCase() ?? "";
   const status = filters.status?.trim() ?? "";
   const group = filters.group?.trim() ?? "";
-  const bureau = filters.bureau?.trim() ?? "";
+  const office = filters.office?.trim() ?? "";
 
   return assets.filter((asset) => {
     if (status && asset.status !== status) return false;
     if (group && asset.currentOwnerGroupName !== group) return false;
-    if (bureau && asset.currentOwnerBureauName !== bureau) return false;
+    if (office && asset.currentOwnerOfficeName !== office) return false;
 
     if (!search) return true;
 
@@ -77,7 +114,7 @@ export function filterAssets(
       asset.model,
       asset.currentOwnerName,
       asset.currentOwnerGroupName,
-      asset.currentOwnerBureauName,
+      asset.currentOwnerOfficeName,
     ]
       .filter((value): value is string => Boolean(value))
       .join(" ")
@@ -96,7 +133,7 @@ export interface AssetDetail {
   status: string;
   currentOwnerName: string | null;
   currentOwnerGroupName: string | null;
-  currentOwnerBureauName: string | null;
+  currentOwnerOfficeName: string | null;
   acquiredAt: Date | null;
   note: string | null;
   disposedAt: Date | null;
@@ -161,13 +198,15 @@ export async function getAssetDetail(id: number): Promise<AssetDetail | null> {
   const asset = await prisma.asset.findUnique({
     where: { id },
     include: {
-      currentOwner: { include: { group: { include: { bureau: true } } } },
+      ...OWNER_INCLUDE,
       repairs: true,
       movements: true,
     },
   });
 
   if (!asset) return null;
+
+  const owner = resolveOwnerInfo(asset);
 
   return {
     id: asset.id,
@@ -176,9 +215,9 @@ export async function getAssetDetail(id: number): Promise<AssetDetail | null> {
     brand: asset.brand,
     model: asset.model,
     status: asset.status,
-    currentOwnerName: asset.currentOwner?.name ?? null,
-    currentOwnerGroupName: asset.currentOwner?.group?.name ?? null,
-    currentOwnerBureauName: asset.currentOwner?.group?.bureau.name ?? null,
+    currentOwnerName: owner.ownerName,
+    currentOwnerGroupName: owner.groupName,
+    currentOwnerOfficeName: owner.officeName,
     acquiredAt: asset.acquiredAt,
     note: asset.note,
     disposedAt: asset.disposedAt,

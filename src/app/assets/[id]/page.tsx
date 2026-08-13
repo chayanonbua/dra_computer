@@ -5,7 +5,7 @@ import {
   ASSET_STATUS_LABELS,
   getAssetDetail,
 } from "@/lib/assets";
-import { getOwners } from "@/lib/owners";
+import { getMovementDestinationOptions } from "@/lib/organization";
 import { AssetActions } from "./asset-actions";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +35,7 @@ export default async function AssetDetailPage({
   const asset = await getAssetDetail(id);
   if (!asset) notFound();
 
-  const owners = await getOwners();
+  const destinations = await getMovementDestinationOptions();
 
   return (
     <main className="mx-auto flex max-w-4xl flex-col gap-6 p-6 sm:p-10">
@@ -75,7 +75,7 @@ export default async function AssetDetailPage({
         </div>
         <div>
           <dt className="text-xs font-medium text-gray-500">สำนัก</dt>
-          <dd className="mt-1">{asset.currentOwnerBureauName ?? "-"}</dd>
+          <dd className="mt-1">{asset.currentOwnerOfficeName ?? "-"}</dd>
         </div>
         <div>
           <dt className="text-xs font-medium text-gray-500">วันที่ได้มา</dt>
@@ -103,7 +103,7 @@ export default async function AssetDetailPage({
         assetId={asset.id}
         status={asset.status}
         currentOwnerName={asset.currentOwnerName}
-        owners={owners}
+        destinations={destinations}
       />
 
       <div className="flex flex-col gap-3">

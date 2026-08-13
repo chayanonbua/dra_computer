@@ -20,20 +20,20 @@ export function AssetListClient({ assets }: { assets: AssetListItem[] }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [group, setGroup] = useState("");
-  const [bureau, setBureau] = useState("");
+  const [office, setOffice] = useState("");
 
   const groupOptions = useMemo(
     () => uniqueSorted(assets.map((a) => a.currentOwnerGroupName)),
     [assets]
   );
-  const bureauOptions = useMemo(
-    () => uniqueSorted(assets.map((a) => a.currentOwnerBureauName)),
+  const officeOptions = useMemo(
+    () => uniqueSorted(assets.map((a) => a.currentOwnerOfficeName)),
     [assets]
   );
 
   const filtered = useMemo(
-    () => filterAssets(assets, { search, status, group, bureau }),
-    [assets, search, status, group, bureau]
+    () => filterAssets(assets, { search, status, group, office }),
+    [assets, search, status, group, office]
   );
 
   return (
@@ -71,14 +71,14 @@ export function AssetListClient({ assets }: { assets: AssetListItem[] }) {
           ))}
         </select>
         <select
-          value={bureau}
-          onChange={(e) => setBureau(e.target.value)}
+          value={office}
+          onChange={(e) => setOffice(e.target.value)}
           className="w-full rounded border border-gray-300 px-3 py-2 text-sm sm:w-48"
         >
           <option value="">ทุกสำนัก</option>
-          {bureauOptions.map((b) => (
-            <option key={b} value={b}>
-              {b}
+          {officeOptions.map((o) => (
+            <option key={o} value={o}>
+              {o}
             </option>
           ))}
         </select>
@@ -156,7 +156,7 @@ export function AssetListClient({ assets }: { assets: AssetListItem[] }) {
                   {asset.currentOwnerGroupName ?? "-"}
                 </td>
                 <td className="px-4 py-2 text-gray-600">
-                  {asset.currentOwnerBureauName ?? "-"}
+                  {asset.currentOwnerOfficeName ?? "-"}
                 </td>
               </tr>
             ))}

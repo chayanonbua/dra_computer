@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
-import type { OwnerOption } from "@/lib/owners";
+import { Modal } from "@/components/Modal";
+import type { MovementDestinationOption } from "@/lib/organization";
 import {
   createMovementAction,
   createRepairAction,
@@ -26,35 +27,6 @@ function SubmitButton({ label }: { label: string }) {
     >
       {pending ? "กำลังบันทึก..." : label}
     </button>
-  );
-}
-
-function Modal({
-  title,
-  onClose,
-  children,
-}: {
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-md rounded bg-white p-6 shadow-lg">
-        <div className="mb-4 flex items-center justify-between">
-          <h3 className="text-lg font-semibold">{title}</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-            aria-label="ปิด"
-          >
-            ✕
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
   );
 }
 
@@ -138,14 +110,16 @@ function RepairForm({ assetId, onClose }: { assetId: number; onClose: () => void
 function MovementForm({
   assetId,
   currentOwnerName,
-  owners,
+  destinations,
   onClose,
 }: {
   assetId: number;
   currentOwnerName: string | null;
-  owners: OwnerOption[];
+  destinations: MovementDestinationOption[];
   onClose: () => void;
 }) {
+  const groupDestinations = destinations.filter((d) => d.type === "group");
+  const personDestinations = destinations.filter((d) => d.type === "person");
   const action = createMovementAction.bind(null, assetId);
   const [state, formAction] = useFormState(action, initialState);
   const formRef = useRef<HTMLFormElement>(null);
@@ -179,7 +153,7 @@ function MovementForm({
       <div>
         <label className="mb-1 block text-sm font-medium">ปลายทาง</label>
         <select
-          name="toOwnerId"
+          name="destination"
           required
           defaultValue=""
           className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
@@ -187,11 +161,24 @@ function MovementForm({
           <option value="" disabled>
             เลือกผู้ใช้งาน/กลุ่มปลายทาง
           </option>
-          {owners.map((owner) => (
-            <option key={owner.id} value={owner.id}>
-              {owner.name} ({owner.type === "person" ? "บุคคล" : "กลุ่ม"})
-            </option>
-          ))}
+          {groupDestinations.length > 0 && (
+            <optgroup label="กลุ่ม">
+              {groupDestinations.map((d) => (
+                <option key={`group-${d.id}`} value={`group:${d.id}`}>
+                  {d.name} ({d.contextLabel})
+                </option>
+              ))}
+            </optgroup>
+          )}
+          {personDestinations.length > 0 && (
+            <optgroup label="บุคคล">
+              {personDestinations.map((d) => (
+                <option key={`person-${d.id}`} value={`person:${d.id}`}>
+                  {d.name} ({d.contextLabel})
+                </option>
+              ))}
+            </optgroup>
+          )}
         </select>
       </div>
       <div>
@@ -283,12 +270,12 @@ export function AssetActions({
   assetId,
   status,
   currentOwnerName,
-  owners,
+  destinations,
 }: {
   assetId: number;
   status: string;
   currentOwnerName: string | null;
-  owners: OwnerOption[];
+  destinations: MovementDestinationOption[];
 }) {
   const [openModal, setOpenModal] = useState<"repair" | "movement" | "disposal" | null>(
     null
@@ -339,7 +326,7 @@ export function AssetActions({
           <MovementForm
             assetId={assetId}
             currentOwnerName={currentOwnerName}
-            owners={owners}
+            destinations={destinations}
             onClose={() => setOpenModal(null)}
           />
         </Modal>
