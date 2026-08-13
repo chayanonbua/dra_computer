@@ -1,0 +1,67 @@
+// Prisma schema เริ่มต้น สำหรับระบบจัดเก็บครุภัณฑ์คอมพิวเตอร์
+// ใช้กับ SQLite — ปรับ provider เป็น postgresql ได้ภายหลังถ้าย้ายฐานข้อมูล
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// ผู้ใช้งาน/กลุ่มที่ถือครองครุภัณฑ์
+model Owner {
+  id        Int        @id @default(autoincrement())
+  name      String
+  type      String     // "person" หรือ "group"
+  assets    Asset[]    // ครุภัณฑ์ที่ถือครองอยู่ปัจจุบัน
+  createdAt DateTime   @default(now())
+}
+
+// ครุภัณฑ์คอมพิวเตอร์
+model Asset {
+  id            Int         @id @default(autoincrement())
+  assetNumber   String      @unique          // หมายเลขครุภัณฑ์
+  name          String                       // ชื่อ/ประเภท เช่น "คอมพิวเตอร์ตั้งโต๊ะ"
+  brand         String?                      // ยี่ห้อ
+  model         String?                      // รุ่น
+  status        String      @default("active") // active | repairing | disposed
+  acquiredAt    DateTime?                    // วันที่ได้มา
+  note          String?
+
+  currentOwner  Owner?      @relation(fields: [currentOwnerId], references: [id])
+  currentOwnerId Int?
+
+  repairs       Repair[]
+  movements     Movement[]
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+// ประวัติการซ่อม (ผูกกับครุภัณฑ์)
+model Repair {
+  id          Int      @id @default(autoincrement())
+  asset       Asset    @relation(fields: [assetId], references: [id])
+  assetId     Int
+  repairedAt  DateTime                        // วันที่ซ่อม
+  symptom     String                          // อาการ
+  solution    String?                         // การแก้ไข
+  cost        Float?                          // ค่าใช้จ่าย
+  handledBy   String?                         // ผู้ดำเนินการ
+  createdAt   DateTime @default(now())
+}
+
+// ประวัติการเคลื่อนย้าย (ผูกกับครุภัณฑ์)
+// เมื่อบันทึกรายการใหม่ ต้องอัปเดต Asset.currentOwnerId ให้ตรงกับ toOwner
+model Movement {
+  id          Int      @id @default(autoincrement())
+  asset       Asset    @relation(fields: [assetId], references: [id])
+  assetId     Int
+  movedAt     DateTime                        // วันที่ย้าย
+  fromOwner   String?                         // ต้นทาง (ชื่อ ณ ขณะย้าย)
+  toOwner     String                          // ปลายทาง
+  note        String?
+  createdAt   DateTime @default(now())
+}
