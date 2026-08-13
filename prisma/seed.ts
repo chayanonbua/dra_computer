@@ -3,10 +3,35 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 async function main() {
+  const adminBureau = await prisma.bureau.create({
+    data: { name: "สำนักงานเลขานุการกรม" },
+  });
+  const technicalBureau = await prisma.bureau.create({
+    data: { name: "สำนักเทคโนโลยีสารสนเทศ" },
+  });
+
+  const [financeGroup, itGroup, personnelGroup] = await Promise.all([
+    prisma.group.create({
+      data: { name: "กลุ่มการเงินและบัญชี", bureauId: adminBureau.id },
+    }),
+    prisma.group.create({
+      data: { name: "กลุ่มพัฒนาระบบ", bureauId: technicalBureau.id },
+    }),
+    prisma.group.create({
+      data: { name: "กลุ่มการเจ้าหน้าที่", bureauId: adminBureau.id },
+    }),
+  ]);
+
   const [itDept, accounting, somchai] = await Promise.all([
-    prisma.owner.create({ data: { name: "ฝ่ายไอที", type: "group" } }),
-    prisma.owner.create({ data: { name: "ฝ่ายบัญชี", type: "group" } }),
-    prisma.owner.create({ data: { name: "สมชาย ใจดี", type: "person" } }),
+    prisma.owner.create({
+      data: { name: "ฝ่ายไอที", type: "group", groupId: itGroup.id },
+    }),
+    prisma.owner.create({
+      data: { name: "ฝ่ายบัญชี", type: "group", groupId: financeGroup.id },
+    }),
+    prisma.owner.create({
+      data: { name: "สมชาย ใจดี", type: "person", groupId: personnelGroup.id },
+    }),
   ]);
 
   const desktop = await prisma.asset.create({
@@ -56,6 +81,8 @@ async function main() {
       status: "disposed",
       acquiredAt: new Date("2019-03-20"),
       note: "จำหน่ายแล้วเนื่องจากหมดอายุการใช้งาน",
+      disposedAt: new Date("2026-02-01"),
+      disposalReason: "ครบอายุการใช้งาน",
     },
   });
 
@@ -91,6 +118,8 @@ async function main() {
   });
 
   console.log("Seed data created:", {
+    bureaus: 2,
+    groups: 3,
     owners: 3,
     assets: [desktop.assetNumber, laptop.assetNumber, printer.assetNumber, oldServer.assetNumber],
   });

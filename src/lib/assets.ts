@@ -24,12 +24,14 @@ export interface AssetListItem {
   model: string | null;
   status: string;
   currentOwnerName: string | null;
+  currentOwnerGroupName: string | null;
+  currentOwnerBureauName: string | null;
 }
 
 export async function getAssetListItems(): Promise<AssetListItem[]> {
   const assets = await prisma.asset.findMany({
     orderBy: { assetNumber: "asc" },
-    include: { currentOwner: true },
+    include: { currentOwner: { include: { group: { include: { bureau: true } } } } },
   });
 
   return assets.map((asset) => ({
@@ -40,12 +42,16 @@ export async function getAssetListItems(): Promise<AssetListItem[]> {
     model: asset.model,
     status: asset.status,
     currentOwnerName: asset.currentOwner?.name ?? null,
+    currentOwnerGroupName: asset.currentOwner?.group?.name ?? null,
+    currentOwnerBureauName: asset.currentOwner?.group?.bureau.name ?? null,
   }));
 }
 
 export interface AssetFilters {
   search?: string;
   status?: string;
+  group?: string;
+  bureau?: string;
 }
 
 export function filterAssets(
@@ -54,9 +60,13 @@ export function filterAssets(
 ): AssetListItem[] {
   const search = filters.search?.trim().toLowerCase() ?? "";
   const status = filters.status?.trim() ?? "";
+  const group = filters.group?.trim() ?? "";
+  const bureau = filters.bureau?.trim() ?? "";
 
   return assets.filter((asset) => {
     if (status && asset.status !== status) return false;
+    if (group && asset.currentOwnerGroupName !== group) return false;
+    if (bureau && asset.currentOwnerBureauName !== bureau) return false;
 
     if (!search) return true;
 
@@ -66,6 +76,8 @@ export function filterAssets(
       asset.brand,
       asset.model,
       asset.currentOwnerName,
+      asset.currentOwnerGroupName,
+      asset.currentOwnerBureauName,
     ]
       .filter((value): value is string => Boolean(value))
       .join(" ")
@@ -83,8 +95,12 @@ export interface AssetDetail {
   model: string | null;
   status: string;
   currentOwnerName: string | null;
+  currentOwnerGroupName: string | null;
+  currentOwnerBureauName: string | null;
   acquiredAt: Date | null;
   note: string | null;
+  disposedAt: Date | null;
+  disposalReason: string | null;
   timeline: TimelineEntry[];
 }
 
@@ -105,13 +121,20 @@ export interface MovementRecord {
   note: string | null;
 }
 
+export interface DisposalRecord {
+  disposedAt: Date;
+  reason: string | null;
+}
+
 export type TimelineEntry =
   | ({ type: "repair"; date: Date } & RepairRecord)
-  | ({ type: "movement"; date: Date } & MovementRecord);
+  | ({ type: "movement"; date: Date } & MovementRecord)
+  | ({ type: "disposal"; date: Date } & DisposalRecord);
 
 export function buildAssetTimeline(
   repairs: RepairRecord[],
-  movements: MovementRecord[]
+  movements: MovementRecord[],
+  disposal?: DisposalRecord | null
 ): TimelineEntry[] {
   const repairEntries: TimelineEntry[] = repairs.map((repair) => ({
     type: "repair",
@@ -125,7 +148,11 @@ export function buildAssetTimeline(
     ...movement,
   }));
 
-  return [...repairEntries, ...movementEntries].sort(
+  const disposalEntries: TimelineEntry[] = disposal
+    ? [{ type: "disposal", date: disposal.disposedAt, ...disposal }]
+    : [];
+
+  return [...repairEntries, ...movementEntries, ...disposalEntries].sort(
     (a, b) => b.date.getTime() - a.date.getTime()
   );
 }
@@ -134,7 +161,7 @@ export async function getAssetDetail(id: number): Promise<AssetDetail | null> {
   const asset = await prisma.asset.findUnique({
     where: { id },
     include: {
-      currentOwner: true,
+      currentOwner: { include: { group: { include: { bureau: true } } } },
       repairs: true,
       movements: true,
     },
@@ -150,8 +177,16 @@ export async function getAssetDetail(id: number): Promise<AssetDetail | null> {
     model: asset.model,
     status: asset.status,
     currentOwnerName: asset.currentOwner?.name ?? null,
+    currentOwnerGroupName: asset.currentOwner?.group?.name ?? null,
+    currentOwnerBureauName: asset.currentOwner?.group?.bureau.name ?? null,
     acquiredAt: asset.acquiredAt,
     note: asset.note,
-    timeline: buildAssetTimeline(asset.repairs, asset.movements),
+    disposedAt: asset.disposedAt,
+    disposalReason: asset.disposalReason,
+    timeline: buildAssetTimeline(
+      asset.repairs,
+      asset.movements,
+      asset.disposedAt ? { disposedAt: asset.disposedAt, reason: asset.disposalReason } : null
+    ),
   };
 }

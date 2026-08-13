@@ -10,11 +10,31 @@ datasource db {
   url      = "file:./dev.db"
 }
 
+// สำนัก
+model Bureau {
+  id        Int      @id @default(autoincrement())
+  name      String
+  groups    Group[]
+  createdAt DateTime @default(now())
+}
+
+// กลุ่ม (ขึ้นกับสำนัก)
+model Group {
+  id        Int      @id @default(autoincrement())
+  name      String
+  bureau    Bureau   @relation(fields: [bureauId], references: [id])
+  bureauId  Int
+  owners    Owner[]
+  createdAt DateTime @default(now())
+}
+
 // ผู้ใช้งาน/กลุ่มที่ถือครองครุภัณฑ์
 model Owner {
   id        Int        @id @default(autoincrement())
   name      String
   type      String     // "person" หรือ "group"
+  group     Group?     @relation(fields: [groupId], references: [id])
+  groupId   Int?
   assets    Asset[]    // ครุภัณฑ์ที่ถือครองอยู่ปัจจุบัน
   createdAt DateTime   @default(now())
 }
@@ -23,12 +43,15 @@ model Owner {
 model Asset {
   id            Int         @id @default(autoincrement())
   assetNumber   String      @unique          // หมายเลขครุภัณฑ์
-  name          String                       // ชื่อ/ประเภท เช่น "คอมพิวเตอร์ตั้งโต๊ะ"
+  name          String                       // ประเภทครุภัณฑ์ เช่น "คอมพิวเตอร์ตั้งโต๊ะ"
   brand         String?                      // ยี่ห้อ
   model         String?                      // รุ่น
   status        String      @default("active") // active | repairing | disposed
   acquiredAt    DateTime?                    // วันที่ได้มา
   note          String?
+
+  disposedAt      DateTime?                  // วันที่จำหน่าย
+  disposalReason  String?                    // เหตุผลการจำหน่าย
 
   currentOwner  Owner?      @relation(fields: [currentOwnerId], references: [id])
   currentOwnerId Int?
