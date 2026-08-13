@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useFormState, useFormStatus } from "react-dom";
 import { Modal } from "@/components/Modal";
+import { OwnerLevelSelect } from "@/components/OwnerLevelSelect";
 import type { MovementDestinationOption } from "@/lib/organization";
 import {
   createMovementAction,
@@ -118,8 +119,6 @@ function MovementForm({
   destinations: MovementDestinationOption[];
   onClose: () => void;
 }) {
-  const groupDestinations = destinations.filter((d) => d.type === "group");
-  const personDestinations = destinations.filter((d) => d.type === "person");
   const action = createMovementAction.bind(null, assetId);
   const [state, formAction] = useFormState(action, initialState);
   const formRef = useRef<HTMLFormElement>(null);
@@ -152,34 +151,11 @@ function MovementForm({
       </div>
       <div>
         <label className="mb-1 block text-sm font-medium">ปลายทาง</label>
-        <select
-          name="destination"
+        <OwnerLevelSelect
+          fieldName="destination"
+          destinations={destinations}
           required
-          defaultValue=""
-          className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-        >
-          <option value="" disabled>
-            เลือกผู้ใช้งาน/กลุ่มปลายทาง
-          </option>
-          {groupDestinations.length > 0 && (
-            <optgroup label="กลุ่ม">
-              {groupDestinations.map((d) => (
-                <option key={`group-${d.id}`} value={`group:${d.id}`}>
-                  {d.name} ({d.contextLabel})
-                </option>
-              ))}
-            </optgroup>
-          )}
-          {personDestinations.length > 0 && (
-            <optgroup label="บุคคล">
-              {personDestinations.map((d) => (
-                <option key={`person-${d.id}`} value={`person:${d.id}`}>
-                  {d.name} ({d.contextLabel})
-                </option>
-              ))}
-            </optgroup>
-          )}
-        </select>
+        />
       </div>
       <div>
         <label className="mb-1 block text-sm font-medium">หมายเหตุ</label>

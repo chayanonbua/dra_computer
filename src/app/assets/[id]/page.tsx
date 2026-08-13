@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import {
   ASSET_STATUS_BADGE_CLASS,
   ASSET_STATUS_LABELS,
+  OWNER_LEVEL_LABELS,
   getAssetDetail,
 } from "@/lib/assets";
 import { getMovementDestinationOptions } from "@/lib/organization";
@@ -44,16 +45,24 @@ export default async function AssetDetailPage({
       </Link>
 
       <div className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-2xl font-semibold">{asset.assetNumber}</h1>
-          <span
-            className={`rounded-full px-2 py-1 text-xs font-medium ${
-              ASSET_STATUS_BADGE_CLASS[asset.status] ?? "bg-gray-100 text-gray-600"
-            }`}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <h1 className="text-2xl font-semibold">{asset.assetNumber}</h1>
+            <span
+              className={`rounded-full px-2 py-1 text-xs font-medium ${
+                ASSET_STATUS_BADGE_CLASS[asset.status] ?? "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {ASSET_STATUS_LABELS[asset.status as keyof typeof ASSET_STATUS_LABELS] ??
+                asset.status}
+            </span>
+          </div>
+          <Link
+            href={`/assets/${asset.id}/edit`}
+            className="rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50"
           >
-            {ASSET_STATUS_LABELS[asset.status as keyof typeof ASSET_STATUS_LABELS] ??
-              asset.status}
-          </span>
+            แก้ไข
+          </Link>
         </div>
         <p className="text-gray-600">{asset.name}</p>
       </div>
@@ -66,8 +75,15 @@ export default async function AssetDetailPage({
           </dd>
         </div>
         <div>
-          <dt className="text-xs font-medium text-gray-500">ผู้ใช้งานปัจจุบัน</dt>
-          <dd className="mt-1">{asset.currentOwnerName ?? "-"}</dd>
+          <dt className="text-xs font-medium text-gray-500">ผู้ถือครองปัจจุบัน</dt>
+          <dd className="mt-1 flex items-center gap-2">
+            {asset.currentOwnerName ?? "-"}
+            {asset.currentOwnerLevel && (
+              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                {OWNER_LEVEL_LABELS[asset.currentOwnerLevel]}
+              </span>
+            )}
+          </dd>
         </div>
         <div>
           <dt className="text-xs font-medium text-gray-500">กลุ่ม</dt>

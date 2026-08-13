@@ -10,12 +10,13 @@ datasource db {
   url      = "file:./dev.db"
 }
 
-// สำนัก (ลำดับชั้นบนสุด)
+// สำนัก (ลำดับชั้นบนสุด) — ถือครองครุภัณฑ์ได้โดยตรงในฐานะสำนัก
 model Office {
-  id        Int      @id @default(autoincrement())
-  name      String
-  groups    Group[]
-  createdAt DateTime @default(now())
+  id             Int      @id @default(autoincrement())
+  name           String
+  groups         Group[]
+  assetsAsOwner  Asset[]  @relation("AssetCurrentOffice")
+  createdAt      DateTime @default(now())
 }
 
 // กลุ่ม (ขึ้นกับสำนัก) — ถือครองครุภัณฑ์ได้โดยตรงในฐานะกลุ่ม
@@ -53,8 +54,10 @@ model Asset {
   disposedAt      DateTime?                  // วันที่จำหน่าย
   disposalReason  String?                    // เหตุผลการจำหน่าย
 
-  // ครุภัณฑ์ผูกกับ "กลุ่ม" (ทั้งกลุ่มถือครองร่วมกัน) หรือ "บุคคล" (คนใดคนหนึ่งถือครอง)
-  // อย่างใดอย่างหนึ่งเท่านั้น หรือว่างทั้งคู่ถ้ายังไม่มอบหมาย — คุมกฎนี้ในชั้น application
+  // ครุภัณฑ์ผูกกับ "สำนัก", "กลุ่ม" หรือ "บุคคล" ระดับใดระดับหนึ่งเท่านั้น
+  // หรือว่างทั้งหมดถ้ายังไม่มอบหมาย — คุมกฎนี้ในชั้น application
+  currentOffice   Office?  @relation("AssetCurrentOffice", fields: [currentOfficeId], references: [id], onDelete: Restrict)
+  currentOfficeId Int?
   currentGroup    Group?   @relation("AssetCurrentGroup", fields: [currentGroupId], references: [id], onDelete: Restrict)
   currentGroupId  Int?
   currentPerson   Person?  @relation("AssetCurrentPerson", fields: [currentPersonId], references: [id], onDelete: Restrict)

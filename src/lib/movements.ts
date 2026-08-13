@@ -1,6 +1,6 @@
 import { prisma } from "./prisma";
 
-export type MovementDestinationType = "group" | "person";
+export type MovementDestinationType = "office" | "group" | "person";
 
 export interface CreateMovementInput {
   assetId: number;
@@ -10,15 +10,17 @@ export interface CreateMovementInput {
   note?: string | null;
 }
 
+const VALID_DESTINATION_TYPES: MovementDestinationType[] = ["office", "group", "person"];
+
 export function validateCreateMovementInput(input: CreateMovementInput): string | null {
   if (!Number.isInteger(input.assetId)) return "ไม่พบครุภัณฑ์ที่ต้องการย้าย";
   if (Number.isNaN(input.movedAt.getTime())) return "กรุณาระบุวันที่ให้ถูกต้อง";
-  if (input.toType !== "group" && input.toType !== "person") return "กรุณาเลือกปลายทาง";
+  if (!VALID_DESTINATION_TYPES.includes(input.toType)) return "กรุณาเลือกปลายทาง";
   if (!Number.isInteger(input.toId)) return "กรุณาเลือกปลายทาง";
   return null;
 }
 
-// สร้างประวัติการเคลื่อนย้าย + อัปเดตผู้ถือครองปัจจุบันของครุภัณฑ์ (กลุ่มหรือบุคคล)
+// สร้างประวัติการเคลื่อนย้าย + อัปเดตผู้ถือครองปัจจุบันของครุภัณฑ์ (สำนัก/กลุ่ม/บุคคล)
 // ในธุรกรรมเดียวกัน ถ้าขั้นตอนใดล้มเหลว ทั้งหมดจะถูกย้อนกลับ ไม่มีข้อมูลตกค้าง
 export async function createMovement(input: CreateMovementInput) {
   const validationError = validateCreateMovementInput(input);
@@ -27,17 +29,22 @@ export async function createMovement(input: CreateMovementInput) {
   return prisma.$transaction(async (tx) => {
     const asset = await tx.asset.findUnique({
       where: { id: input.assetId },
-      include: { currentGroup: true, currentPerson: true },
+      include: { currentOffice: true, currentGroup: true, currentPerson: true },
     });
     if (!asset) throw new Error("ไม่พบครุภัณฑ์ที่ต้องการย้าย");
     if (asset.status === "disposed") {
       throw new Error("ครุภัณฑ์นี้ถูกจำหน่ายแล้ว ไม่สามารถบันทึกการเคลื่อนย้ายได้");
     }
 
-    const fromOwner = asset.currentPerson?.name ?? asset.currentGroup?.name ?? null;
+    const fromOwner =
+      asset.currentPerson?.name ?? asset.currentGroup?.name ?? asset.currentOffice?.name ?? null;
 
     let toOwnerName: string;
-    if (input.toType === "group") {
+    if (input.toType === "office") {
+      const toOffice = await tx.office.findUnique({ where: { id: input.toId } });
+      if (!toOffice) throw new Error("ไม่พบสำนักปลายทางที่เลือก");
+      toOwnerName = toOffice.name;
+    } else if (input.toType === "group") {
       const toGroup = await tx.group.findUnique({ where: { id: input.toId } });
       if (!toGroup) throw new Error("ไม่พบกลุ่มปลายทางที่เลือก");
       toOwnerName = toGroup.name;
@@ -59,10 +66,11 @@ export async function createMovement(input: CreateMovementInput) {
 
     await tx.asset.update({
       where: { id: asset.id },
-      data:
-        input.toType === "group"
-          ? { currentGroupId: input.toId, currentPersonId: null }
-          : { currentPersonId: input.toId, currentGroupId: null },
+      data: {
+        currentOfficeId: input.toType === "office" ? input.toId : null,
+        currentGroupId: input.toType === "group" ? input.toId : null,
+        currentPersonId: input.toType === "person" ? input.toId : null,
+      },
     });
 
     return movement;

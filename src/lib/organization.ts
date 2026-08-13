@@ -78,18 +78,39 @@ export async function getGroups(): Promise<GroupSummary[]> {
   }));
 }
 
+export async function getPeople(): Promise<PersonSummary[]> {
+  const people = await prisma.person.findMany({
+    orderBy: { name: "asc" },
+    include: { group: true },
+  });
+  return people.map((p) => ({
+    id: p.id,
+    name: p.name,
+    groupId: p.groupId,
+    groupName: p.group.name,
+  }));
+}
+
 export interface MovementDestinationOption {
-  type: "group" | "person";
+  type: "office" | "group" | "person";
   id: number;
   name: string;
   contextLabel: string;
 }
 
 export async function getMovementDestinationOptions(): Promise<MovementDestinationOption[]> {
-  const [groups, people] = await Promise.all([
+  const [offices, groups, people] = await Promise.all([
+    prisma.office.findMany({ orderBy: { name: "asc" } }),
     prisma.group.findMany({ orderBy: { name: "asc" }, include: { office: true } }),
     prisma.person.findMany({ orderBy: { name: "asc" }, include: { group: true } }),
   ]);
+
+  const officeOptions: MovementDestinationOption[] = offices.map((o) => ({
+    type: "office",
+    id: o.id,
+    name: o.name,
+    contextLabel: "สำนัก",
+  }));
 
   const groupOptions: MovementDestinationOption[] = groups.map((g) => ({
     type: "group",
@@ -105,7 +126,7 @@ export async function getMovementDestinationOptions(): Promise<MovementDestinati
     contextLabel: p.group.name,
   }));
 
-  return [...groupOptions, ...personOptions];
+  return [...officeOptions, ...groupOptions, ...personOptions];
 }
 
 function validateName(name: string, label: string): string | null {

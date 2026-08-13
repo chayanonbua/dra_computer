@@ -6,6 +6,7 @@ import {
   ASSET_STATUSES,
   ASSET_STATUS_BADGE_CLASS,
   ASSET_STATUS_LABELS,
+  OWNER_LEVEL_LABELS,
   filterAssets,
   type AssetListItem,
 } from "@/lib/assets";
@@ -105,7 +106,7 @@ export function AssetListClient({ assets }: { assets: AssetListItem[] }) {
                 สถานะ
               </th>
               <th className="px-4 py-2 text-left font-medium text-gray-600">
-                ผู้ใช้งานปัจจุบัน
+                ผู้ถือครองปัจจุบัน
               </th>
               <th className="px-4 py-2 text-left font-medium text-gray-600">
                 กลุ่ม
@@ -150,7 +151,14 @@ export function AssetListClient({ assets }: { assets: AssetListItem[] }) {
                   </span>
                 </td>
                 <td className="px-4 py-2 text-gray-600">
-                  {asset.currentOwnerName ?? "-"}
+                  <div className="flex items-center gap-2">
+                    {asset.currentOwnerName ?? "-"}
+                    {asset.currentOwnerLevel && (
+                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                        {OWNER_LEVEL_LABELS[asset.currentOwnerLevel]}
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="px-4 py-2 text-gray-600">
                   {asset.currentOwnerGroupName ?? "-"}

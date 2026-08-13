@@ -132,6 +132,70 @@ describe("createMovement", () => {
     expect(asset.currentPersonId).toBeNull();
   });
 
+  it("moves the asset to an office and updates currentOfficeId, clearing the other owner fields", async () => {
+    // ต่อจากเทสก่อนหน้า เจ้าของปัจจุบันตอนนี้คือ groupB แล้ว
+    const office = await prisma.office.findUniqueOrThrow({ where: { id: officeId } });
+
+    const movement = await createMovement({
+      assetId,
+      movedAt: new Date("2026-06-20"),
+      toType: "office",
+      toId: officeId,
+      note: "ย้ายทดสอบครั้งที่ 3: กลุ่ม -> สำนัก",
+    });
+
+    expect(movement.fromOwner).toBe(groupBName);
+    expect(movement.toOwner).toBe(office.name);
+
+    const asset = await prisma.asset.findUniqueOrThrow({ where: { id: assetId } });
+    expect(asset.currentOfficeId).toBe(officeId);
+    expect(asset.currentGroupId).toBeNull();
+    expect(asset.currentPersonId).toBeNull();
+  });
+
+  it("moves the asset from an office to a person, completing a full 3-level chain", async () => {
+    // ต่อจากเทสก่อนหน้า เจ้าของปัจจุบันตอนนี้คือสำนักแล้ว
+    const office = await prisma.office.findUniqueOrThrow({ where: { id: officeId } });
+
+    const movement = await createMovement({
+      assetId,
+      movedAt: new Date("2026-06-25"),
+      toType: "person",
+      toId: personAId,
+      note: "ย้ายทดสอบครั้งที่ 4: สำนัก -> บุคคล",
+    });
+
+    expect(movement.fromOwner).toBe(office.name);
+    expect(movement.toOwner).toBe(personAName);
+
+    const asset = await prisma.asset.findUniqueOrThrow({ where: { id: assetId } });
+    expect(asset.currentPersonId).toBe(personAId);
+    expect(asset.currentOfficeId).toBeNull();
+    expect(asset.currentGroupId).toBeNull();
+  });
+
+  it("rolls back completely when the destination office does not exist: no movement row, owner unchanged", async () => {
+    const assetBefore = await prisma.asset.findUniqueOrThrow({ where: { id: assetId } });
+    const movementCountBefore = await prisma.movement.count({ where: { assetId } });
+
+    await expect(
+      createMovement({
+        assetId,
+        movedAt: new Date("2026-07-01"),
+        toType: "office",
+        toId: 999999,
+      })
+    ).rejects.toThrow();
+
+    const assetAfter = await prisma.asset.findUniqueOrThrow({ where: { id: assetId } });
+    const movementCountAfter = await prisma.movement.count({ where: { assetId } });
+
+    expect(assetAfter.currentOfficeId).toBe(assetBefore.currentOfficeId);
+    expect(assetAfter.currentGroupId).toBe(assetBefore.currentGroupId);
+    expect(assetAfter.currentPersonId).toBe(assetBefore.currentPersonId);
+    expect(movementCountAfter).toBe(movementCountBefore);
+  });
+
   it("rolls back completely when the destination group does not exist: no movement row, owner unchanged", async () => {
     const assetBefore = await prisma.asset.findUniqueOrThrow({ where: { id: assetId } });
     const movementCountBefore = await prisma.movement.count({ where: { assetId } });
