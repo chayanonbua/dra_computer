@@ -38,8 +38,10 @@ yarn-error.log*
 # claude code local session config (machine-specific)
 .claude/
 
-# personnel data source file (contains real names — don't commit)
+# personnel/asset data source files (contain real names — don't commit)
 /รายชื่อบุคลากร_จัดรูปแบบใหม่.xlsx
+/รายการครุภัณฑ์_เครื่องพิมพ์_จัดรูปแบบใหม่.xlsx
+/รายการคุรภัณฑ์คอมพิวเตอร์ (อัพเดท 10 ส.ค. 69 ).xlsx
 
 # typescript
 *.tsbuildinfo
