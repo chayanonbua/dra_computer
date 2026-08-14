@@ -24,6 +24,12 @@ export const OWNER_LEVEL_LABELS: Record<OwnerLevel, string> = {
   person: "บุคคล",
 };
 
+// ตัดคำนำหน้า "กลุ่ม"/"บุคคล" ออกจากชื่อผู้ถือครอง สำหรับแสดงผลในที่ที่ไม่มีป้ายบอกระดับกำกับอยู่แล้ว
+// (ชื่อกลุ่มในระบบส่วนใหญ่ขึ้นต้นด้วย "กลุ่ม" อยู่แล้ว เช่น "กลุ่มการคลัง" -> "การคลัง")
+export function formatOwnerDisplayName(name: string): string {
+  return name.replace(/^(กลุ่ม|บุคคล)\s*/, "");
+}
+
 export interface AssetListItem {
   id: number;
   assetNumber: string;

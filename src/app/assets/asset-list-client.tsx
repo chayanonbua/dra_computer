@@ -1,15 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ASSET_STATUSES,
   ASSET_STATUS_BADGE_CLASS,
   ASSET_STATUS_LABELS,
-  OWNER_LEVEL_LABELS,
   filterAssets,
+  formatOwnerDisplayName,
   type AssetListItem,
 } from "@/lib/assets";
+import { getPageNumbers, paginate } from "@/lib/pagination";
+
+const PAGE_SIZE = 10;
 
 function uniqueSorted(values: (string | null)[]): string[] {
   return Array.from(new Set(values.filter((v): v is string => Boolean(v)))).sort((a, b) =>
@@ -22,6 +25,7 @@ export function AssetListClient({ assets }: { assets: AssetListItem[] }) {
   const [status, setStatus] = useState("");
   const [group, setGroup] = useState("");
   const [office, setOffice] = useState("");
+  const [page, setPage] = useState(1);
 
   const groupOptions = useMemo(
     () => uniqueSorted(assets.map((a) => a.currentOwnerGroupName)),
@@ -36,6 +40,13 @@ export function AssetListClient({ assets }: { assets: AssetListItem[] }) {
     () => filterAssets(assets, { search, status, group, office }),
     [assets, search, status, group, office]
   );
+
+  // เมื่อค้นหา/ฟิลเตอร์เปลี่ยน ผลลัพธ์เปลี่ยน ให้กลับไปหน้าแรกเสมอ
+  useEffect(() => {
+    setPage(1);
+  }, [search, status, group, office]);
+
+  const pagination = useMemo(() => paginate(filtered, page, PAGE_SIZE), [filtered, page]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -89,88 +100,76 @@ export function AssetListClient({ assets }: { assets: AssetListItem[] }) {
         พบ {filtered.length} รายการ จากทั้งหมด {assets.length} รายการ
       </p>
 
-      <div className="overflow-x-auto rounded border border-gray-200">
-        <table className="min-w-full divide-y divide-gray-200 text-sm">
-          <thead className="bg-gray-50">
+      <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+        <table className="min-w-full text-sm">
+          <thead className="bg-gray-100">
             <tr>
-              <th className="px-4 py-2 text-left font-medium text-gray-600">
+              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
                 หมายเลขครุภัณฑ์
               </th>
-              <th className="px-4 py-2 text-left font-medium text-gray-600">
-                ประเภทครุภัณฑ์
+              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
+                ชื่อ/ประเภท
               </th>
-              <th className="px-4 py-2 text-left font-medium text-gray-600">
+              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
                 ยี่ห้อ/รุ่น
               </th>
-              <th className="px-4 py-2 text-left font-medium text-gray-600">
+              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
                 สถานะ
               </th>
-              <th className="px-4 py-2 text-left font-medium text-gray-600">
-                ผู้ถือครองปัจจุบัน
-              </th>
-              <th className="px-4 py-2 text-left font-medium text-gray-600">
-                กลุ่ม
-              </th>
-              <th className="px-4 py-2 text-left font-medium text-gray-600">
-                สำนัก
+              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
+                ผู้ถือครอง
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-gray-200 bg-white">
-            {filtered.map((asset) => (
-              <tr
-                key={asset.id}
-                className={`hover:bg-gray-50 ${
-                  asset.status === "disposed" ? "opacity-60" : ""
-                }`}
-              >
-                <td className="px-4 py-2">
-                  <Link
-                    href={`/assets/${asset.id}`}
-                    className="font-medium text-blue-600 hover:underline"
-                  >
-                    {asset.assetNumber}
-                  </Link>
-                </td>
-                <td className="px-4 py-2">
-                  <Link href={`/assets/${asset.id}`} className="hover:underline">
-                    {asset.name}
-                  </Link>
-                </td>
-                <td className="px-4 py-2 text-gray-600">
-                  {[asset.brand, asset.model].filter(Boolean).join(" / ") || "-"}
-                </td>
-                <td className="px-4 py-2">
-                  <span
-                    className={`rounded-full px-2 py-1 text-xs font-medium ${
-                      ASSET_STATUS_BADGE_CLASS[asset.status] ?? "bg-gray-100 text-gray-600"
-                    }`}
-                  >
-                    {ASSET_STATUS_LABELS[asset.status as keyof typeof ASSET_STATUS_LABELS] ??
-                      asset.status}
-                  </span>
-                </td>
-                <td className="px-4 py-2 text-gray-600">
-                  <div className="flex items-center gap-2">
-                    {asset.currentOwnerName ?? "-"}
-                    {asset.currentOwnerLevel && (
-                      <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
-                        {OWNER_LEVEL_LABELS[asset.currentOwnerLevel]}
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="px-4 py-2 text-gray-600">
-                  {asset.currentOwnerGroupName ?? "-"}
-                </td>
-                <td className="px-4 py-2 text-gray-600">
-                  {asset.currentOwnerOfficeName ?? "-"}
-                </td>
-              </tr>
-            ))}
+          <tbody className="divide-y divide-gray-100">
+            {pagination.items.map((asset, idx) => {
+              const ownerDisplayName = asset.currentOwnerName
+                ? formatOwnerDisplayName(asset.currentOwnerName)
+                : "-";
+              return (
+                <tr
+                  key={asset.id}
+                  className={`${idx % 2 === 1 ? "bg-gray-50" : "bg-white"} hover:bg-blue-50 ${
+                    asset.status === "disposed" ? "opacity-60" : ""
+                  }`}
+                >
+                  <td className="px-4 py-4">
+                    <Link
+                      href={`/assets/${asset.id}`}
+                      className="font-medium text-blue-600 hover:underline"
+                    >
+                      {asset.assetNumber}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-4">
+                    <Link href={`/assets/${asset.id}`} className="hover:underline">
+                      {asset.name}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-4 text-gray-600">
+                    {[asset.brand, asset.model].filter(Boolean).join(" / ") || "-"}
+                  </td>
+                  <td className="px-4 py-4">
+                    <span
+                      className={`inline-block rounded-full px-2.5 py-1 text-xs font-medium ${
+                        ASSET_STATUS_BADGE_CLASS[asset.status] ?? "bg-gray-100 text-gray-600"
+                      }`}
+                    >
+                      {ASSET_STATUS_LABELS[asset.status as keyof typeof ASSET_STATUS_LABELS] ??
+                        asset.status}
+                    </span>
+                  </td>
+                  <td className="max-w-[220px] px-4 py-4 text-gray-600">
+                    <span className="block truncate" title={ownerDisplayName}>
+                      {ownerDisplayName}
+                    </span>
+                  </td>
+                </tr>
+              );
+            })}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-gray-400">
+                <td colSpan={5} className="px-4 py-6 text-center text-gray-400">
                   ไม่พบครุภัณฑ์ที่ตรงกับเงื่อนไข
                 </td>
               </tr>
@@ -178,6 +177,53 @@ export function AssetListClient({ assets }: { assets: AssetListItem[] }) {
           </tbody>
         </table>
       </div>
+
+      {filtered.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-gray-500">
+            หน้า {pagination.currentPage} จาก {pagination.totalPages}
+          </p>
+          <div className="flex flex-wrap items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setPage((p) => p - 1)}
+              disabled={pagination.currentPage <= 1}
+              className="rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              ← ก่อนหน้า
+            </button>
+            {getPageNumbers(pagination.currentPage, pagination.totalPages).map((entry, i) =>
+              entry === "ellipsis" ? (
+                <span key={`ellipsis-${i}`} className="px-2 text-sm text-gray-400">
+                  …
+                </span>
+              ) : (
+                <button
+                  key={entry}
+                  type="button"
+                  onClick={() => setPage(entry)}
+                  aria-current={entry === pagination.currentPage ? "page" : undefined}
+                  className={`min-w-[2.25rem] rounded border px-3 py-1.5 text-sm ${
+                    entry === pagination.currentPage
+                      ? "border-blue-600 bg-blue-600 text-white"
+                      : "border-gray-300 hover:bg-gray-50"
+                  }`}
+                >
+                  {entry}
+                </button>
+              )
+            )}
+            <button
+              type="button"
+              onClick={() => setPage((p) => p + 1)}
+              disabled={pagination.currentPage >= pagination.totalPages}
+              className="rounded border border-gray-300 px-3 py-1.5 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              ถัดไป →
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

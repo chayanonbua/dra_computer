@@ -4,6 +4,7 @@ import {
   ASSET_STATUS_LABELS,
   buildAssetTimeline,
   filterAssets,
+  formatOwnerDisplayName,
   getAssetDetail,
   getAssetListItems,
   type AssetListItem,
@@ -165,6 +166,29 @@ describe("filterAssets", () => {
   it("returns an empty list when nothing matches", () => {
     const result = filterAssets(assets, { search: "ไม่มีทางเจอ" });
     expect(result).toHaveLength(0);
+  });
+});
+
+describe("formatOwnerDisplayName", () => {
+  it('ตัดคำนำหน้า "กลุ่ม" ออกจากชื่อกลุ่ม', () => {
+    expect(formatOwnerDisplayName("กลุ่มการคลัง")).toBe("การคลัง");
+  });
+
+  it('ตัดคำนำหน้า "บุคคล" ออก ถ้ามีนำหน้าชื่อ', () => {
+    expect(formatOwnerDisplayName("บุคคลสมชาย ใจดี")).toBe("สมชาย ใจดี");
+  });
+
+  it("ไม่ตัดอะไรออกถ้าชื่อไม่ได้ขึ้นต้นด้วยคำเหล่านี้ (เช่น ชื่อบุคคลทั่วไปหรือชื่อสำนัก)", () => {
+    expect(formatOwnerDisplayName("นางฉวีวรรณ วงค์ศรี")).toBe("นางฉวีวรรณ วงค์ศรี");
+    expect(formatOwnerDisplayName("สำนักงานเลขานุการกรม")).toBe("สำนักงานเลขานุการกรม");
+    expect(formatOwnerDisplayName("ฝ่ายบริหารทั่วไป")).toBe("ฝ่ายบริหารทั่วไป");
+  });
+
+  it("ไม่ตัดคำที่ขึ้นต้นคล้ายกันแต่ไม่ใช่คำเต็ม (เช่น กลุ่มงาน... ยังคงคำว่ากลุ่มไว้ตามชื่อจริง)", () => {
+    // "กลุ่มงานเลขานุการ..." -> ตัด "กลุ่ม" นำหน้าออกเหลือ "งานเลขานุการ..." ตามกติกาเดียวกัน
+    expect(formatOwnerDisplayName("กลุ่มงานเลขานุการคณะกรรมการส่งเสริมคุณธรรมแห่งชาติ")).toBe(
+      "งานเลขานุการคณะกรรมการส่งเสริมคุณธรรมแห่งชาติ"
+    );
   });
 });
 
